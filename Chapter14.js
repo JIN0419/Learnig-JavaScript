@@ -340,3 +340,178 @@ class Countdown extends EventEmitter{
 
 
 //프라미스 체인
+//프라미스는 체인으로 연결할 수 있다. 프라미스가 완료되면 다른 프라미스를 반환하는 함수를 즉시 호출할 수 있다.
+function launch(){
+    return new Promise(function(resolve, reject){
+        console.log("Lift off!");
+        setTimeout(function(){
+            resolve("In orbit!");
+        }, 2*1000);
+    });
+}
+
+const c = new Countdown(5)
+    .on('tick', i => console.log(i + '...'));
+
+c.go()
+    .then(launch)
+    .then(function(msg){
+        console.log(msg);
+    })
+    .catch(function(err){
+        console.error("Houston, we have a problem...");
+    })
+//5...
+//4...
+//3...
+//2...
+//1...
+//0...
+//Lift off!
+//In orbit!
+
+
+//결정되지 않는 프라미스 방지하기
+//resolve나 reject를 호출하는 것을 잊어서 프라미스가 결정되지 않는 문제
+//해결 방안 1 : 프라미스에 타임아웃을 걸기. -> 충분한 시간이 지났는데도 프라미스 결정 안되면 자동으로 실패하게 만들기
+
+//실패할 확률이 0.5, 무책임한 코드(reject호출X, 콘솔에 기록X)
+function launch(){
+    return new Promise(function(resolve, reject){
+        if(Math.random() < 0.5) return;
+        console.log("Lift off!");
+        setTimeout(function(){
+            resolve("In orbit!");
+        }, 2*1000);
+    });
+}
+
+//프라미스에 타임아웃을 거는 함수
+function addTimeout(fn, timeout){
+    if(timeout === undefined){
+        timeout = 1000;
+    }
+    return function(...args){
+        return new Promise(function(resolve, reject){
+            const tid = setTimeout(reject, timeout, new Error("promise timed out!"));
+            fn(...args)
+                .then(function(...args){
+                    clearTimeout(tid);
+                    resolve(...args);
+                })
+                .catch(function(...args){
+                    clearTimeout(tid);
+                    reject(...args);
+                });
+        });
+    }
+}
+
+c.go()
+    .then(addTimeout(launch, 11*1000))
+    .then(function(msg){
+        console.log(msg);
+    })
+    .catch(function(err){
+        console.error("Houston, we have a problem: " + err.message);
+    });
+
+
+
+//14.4 제너레이터
+//제너레이터는 원래 동기적인 성격을 가졌지만 프라미스와 결합하면 비동기 코드를 효율적으로 관리할 수 있다.
+
+//세 개의 파일을 읽고 60초 후 새로운 파일에 합쳐 쓰는 콜백헬 예제
+const fs = require('fs');
+fs.readFile('a.txt', function(err, dataA){
+    if(err){
+        console.error(err);
+    }
+    fs.readFile('b.txt', function(err, dataB){
+        if(err){
+            console.error(err);
+        }
+        fs.readFile('c.txt', function(err, dataC){
+            if(err){
+                console.error(err);
+            }
+            setTimeout(function() {
+                fs.writeFile('d.txt', dataA + dataB + dataC, function(err){
+                    if(err){
+                        console.error(err);
+                    }
+                });
+            }, 60*1000);
+        });
+    });
+});
+
+//노드의 오류 우선 콜백 => 프라미스 (Node function call 함수 이용)
+function nfcall(f, ...args){
+    return new Promise(function(resolve, reject){
+        f.call(null, ...args, function(err, ...args){
+            if(err){
+                return reject(err);
+            }
+            resolve(args.length < 2 ? args[0] : args);
+        });
+    });
+}
+
+//setTimeout은 노드보다 먼저 나왔고 오류 우선 콜백의 패턴을 따르지 않기 때문에 같은 기능을 가진 함수 만듬
+function ptimeout(delay){
+    return new Promise(function(resolve, reject){
+        setTimeout(resolve, delay);
+    });
+}
+
+//제너레이터 실행기
+//제너레이터와의 통신을 관리하고 비동기적 호출을 처리하는 함수 만듬
+function grun(g){
+    const it = g();
+    (function iterate(val){
+        const x = it.next(val);
+        if(!x.done){
+            if(x.value instanceof Promise){
+                x.value.then(iterate).catch(err => it.throw(err));
+            }else{
+                setTimeout(iterate, 0, x.value);
+            }
+        }
+    })();
+}
+
+function* theFutureIsNow(){
+    const dataA = yield nfcall(fs.readFile, 'a.txt');
+    const dataB = yield nfcall(fs.readFile, 'b.txt');
+    const dataC = yield nfcall(fs.readFile, 'c.txt');
+    yield ptimeout(60*1000);
+    yield nfcall(fs.writeFile, 'd.txt', dataA+dataB+dataC);
+}
+
+grun(theFutureIsNow);
+
+
+//제너레이터 실행기와 예외처리
+//제너레이터 실행기는 비동기적으로 실행하면서도 동기적인 동작 방식을 유지하므로 try/catch문과 함께 쓸 수 있음.
+//콜백이나 프라미스를 사용하면 예외처리 어려움. 콜백에서 일으킨 예외는 그 콜백 밖에서 캐치할 수X
+function* theFutureIsNow(){
+    let data;
+    try{
+        data = yield Promise.all([
+            nfcall(fs.readFile, 'a.txt'),
+            nfcall(fs.readFile, 'b.txt'),
+            nfcall(fs.readFile, 'c.txt'),
+        ]);
+    }catch(err){
+        console.error("Unable to read one or more input files: " + err.message);
+        throw err;
+    }
+    yield ptimeout(60*1000);
+    try{
+        yield nfcall(fs.writeFile, 'd.txt', data[0]+data[1]+data[2]);
+    }catch(err){
+        console.error("Unable to write output file: "+err.message);
+        throw err;
+    }
+}
