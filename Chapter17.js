@@ -118,7 +118,10 @@ const valid = /\S/.test(field);
 
 //도메인 이름 찾기
 const text = "Visit oreilly.com today!";
-const match = text.match(/[a-z]+(?:\.com|\.org|\.edu)/i);
+const match = text.match(/[a-z]+(?:\.com|\.org|\.edu)/i);   
+//["oreilly.com", index: 6, input: "Visit oreilly.com today!", groups: undefined]
+
+//txt.match(/[a-z]+(\.com|\.org|\.edu)/i); -> ["oreilly.com", ".com", index: 6, input: "Visit oreilly.com today!", groups: undefined]
 
 //그룹에도 반복 적용 가능
 const html = '<link rel = "stylesheet" href="http://insecure.com/stuff.css">\n' +
