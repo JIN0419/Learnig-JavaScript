@@ -1,0 +1,75 @@
+ <!DOCTYPE html> 
+ <html>
+     <head>
+         <meta charset = "utf-8">
+         <title>Simple HTML</title>
+         <style>
+             .callout {
+                 border: solid 1px #ff0080;
+                 margin: 2px 4px;
+                 padding: 2px 6px;
+             }
+             .code {
+                 background: #ccc;
+                 margin: 1px 2px;
+                 padding: 1px 4px;
+                 font-family: monospace;
+             }
+             .highlight{
+                background: #ff0;
+                font-style: italic;
+             }
+         </style>
+     </head>
+     <body>
+    <header>
+        <h1> SimpleHTML</h1>
+    </header>
+    <div id="content">
+        <button data-action="highlight" data-containing = "unique">
+            Highlight paragraphs containing "unique"
+        </button>
+        <button data-action="removeHighlights">
+            Remove highlights
+        </button>
+        <p>This is a <i>simple</i> HTML file.</p>
+        <div class="callout">
+            <p>This is as fancy as we'll get!</p>
+        </div>
+        <p> IDs (such as <span class="code">#content</span>) are unique (there can only be one per page).</p>
+        <p>Classes (such as <span class="code">.callout</span>) cans be used on many elemens.</p>
+        <div id="callout2" class="callout fancy">
+            <p>A single HTML element can have multiple calsses.</p>
+        </div>
+        <div class = "serverInfo">
+            Server is running on <span data-replace="platform">???</span>
+            with Node <span data-replace="nodeVersion">???</span>. It has
+            been up for <span data-replace="uptime">???</span> seconds.
+        </div>
+    </div>
+
+    <script>
+        function refreshServerInfo(){
+            const req = new XMLHttpRequest();   //XMLHttpRequest 객체를 만들고
+            req.addEventListener('load', function(){    //Ajax 호출이 성공했을 때 발생할 load이벤트에 대한 이벤트 리스너 만듬
+                console.log(this.responseText);     //서버 응답(this.responseText)을 콘솔에 출력
+
+                const data = JSON.parse(this.responseText);
+                const serverInfo = document.querySelector('.serverInfo');
+                Object.keys(data).forEach(p => {
+                    const replacements = serverInfo.querySelectorAll(`[data-replace="${p}"]`);
+                    for(let r of replacements){
+                        r.textContent = data[p];
+                    }
+                });
+            });
+            req.open('GET', 'http://localhost:7070', true); //open을 호출해 서버에 실제 연결 (HTTP GET요청을 쓴다고 명시하고, 서버 URL넘김)
+            req.send();                              //send를 호출해 요청을 실행
+        }
+        refreshServerInfo();
+        setInterval(refreshServerInfo, 200);
+    </script>
+     </body>
+ </html> 
+
+ 
